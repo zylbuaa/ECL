@@ -38,12 +38,12 @@ class ConfusionMatrix(object):
 
     def summary(self,File):
         #calculate accuracy
-        sum_TP=0
+        sum_TP = 0
         for i in range(self.num_classes):
             sum_TP += self.matrix[i,i] #混淆矩阵对角线的元素之和，也就是分类正确的数量
         self.acc = sum_TP/np.sum(self.matrix) #总体准确率
-        print("the model accuracy is ",self.acc)
-        File.write("the model accuracy is {}".format(self.acc)+"\n")
+        print("the model accuracy is :{:.4f}".format(self.acc))
+        File.write("the model accuracy is {:.4f}".format(self.acc)+"\n")
 
         #precision,recall,specificity
         table=PrettyTable() #创建一个表格
@@ -93,5 +93,5 @@ def Auc(pro_list,lab_list,classnum,File):
         table.add_row([i,auc_i])
     print(table)
     File.write(str(table) + '\n')
-    print(np.mean(roc_auc))
+    print("the average auc: {:.4f}".format(np.mean(roc_auc)))
     # return np.mean(roc_auc)

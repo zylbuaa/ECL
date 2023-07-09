@@ -47,17 +47,26 @@ def get_proxies_num(cls_num_list):
 def main(args):
     log_file = open(os.path.join(args.log_path,'train_log.txt'), 'w')
 
+    '''print args'''
+    for arg in vars(args):
+        print(arg, getattr(args, arg))
+        print(arg, getattr(args, arg),file=log_file)
+
+
     '''load models'''
     model = ECL_model(num_classes=args.num_classes,feat_dim=args.feat_dim)
     proxy_num_list = get_proxies_num(args.cls_num_list)
-    model_proxy = balanced_proxies(dim=args.feat_dim,proxy_num=proxy_num_list)
+    model_proxy = balanced_proxies(dim=args.feat_dim,proxy_num=sum(proxy_num_list))
 
     if args.cuda:
         model.cuda()
         model_proxy.cuda()
+    print("Model size: {:.5f}M".format(sum(p.numel() for p in model.parameters())/1000000.0))
     print("Model size: {:.5f}M".format(sum(p.numel() for p in model.parameters())/1000000.0),file=log_file)
+    print("Model_proxy size: {:.5f}M".format(sum(p.numel() for p in model_proxy.parameters())/1000000.0))
     print("Model_proxy size: {:.5f}M".format(sum(p.numel() for p in model_proxy.parameters())/1000000.0),file=log_file)
-    print("model init done",file=log_file)
+    print("=============model init done=============")
+    print("=============model init done=============",file=log_file)
 
     '''load optimizer'''
     optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=0.9)
@@ -72,7 +81,7 @@ def main(args):
 
     '''load dataset'''
     transfrom_train = [augmentation_rand, augmentation_sim]
-    if args.dataset == 'isic2018':
+    if args.dataset == 'ISIC2018':
         train_iterator = DataLoader(isic2018_dataset(path=args.data_path, transform=transfrom_train, mode='train'),
                                     batch_size=args.batch_size, shuffle=True, num_workers=4, drop_last=True)
         valid_iterator = DataLoader(isic2018_dataset(path=args.data_path, transform=augmentation_test, mode='valid'),
@@ -80,7 +89,7 @@ def main(args):
         test_iterator = DataLoader(isic2018_dataset(path=args.data_path, transform=augmentation_test, mode='test'),
                                    batch_size=1, shuffle=False, num_workers=2)
 
-    elif args.dataset == 'isic2019':
+    elif args.dataset == 'ISIC2019':
         train_iterator = DataLoader(isic2019_dataset(path=args.data_path, transform=transfrom_train, mode='train'),
                                     batch_size=args.batch_size, shuffle=True, num_workers=4, drop_last=True)
         valid_iterator = DataLoader(isic2019_dataset(path=args.data_path, transform=augmentation_test, mode='valid'),
@@ -97,7 +106,7 @@ def main(args):
     beta = args.beta
 
     '''train'''
-    f_score_list = [1.0 for cols in range(args.class_num)]
+    f_score_list = [1.0 for _ in range(args.num_classes)]
     best_acc = 0.0
     old_model_path = None
     curr_patience = args.patience
@@ -106,11 +115,14 @@ def main(args):
         for e in range(args.epochs):
             model.train()
             model_proxy.train()
+            print('Epoch:{}'.format(e))
             print('Epoch:{}'.format(e),file=log_file)
 
             start_time_epoch = time.time()
             train_loss = 0.0
 
+            lr_scheduler.step()
+            lr_scheduler_proxies.step()
             optimizer_proxies.zero_grad()
 
             for batch_index, (data, label) in enumerate(train_iterator):
@@ -141,12 +153,14 @@ def main(args):
                     correct_num = (predicted_results.cpu() == diagnosis_label.cpu()).sum().item()
                     acc = correct_num / len(diagnosis_label)
                     print('Training epoch: {} [{}/{}], Loss: {:.4f}, Accuracy: {:.4f}, Learning rate: {}'.format(e,
+                        batch_index * args.batch_size, len(train_iterator.dataset), loss.item(), acc, optimizer.param_groups[0]['lr']))
+                    print('Training epoch: {} [{}/{}], Loss: {:.4f}, Accuracy: {:.4f}, Learning rate: {}'.format(e,
                         batch_index * args.batch_size, len(train_iterator.dataset), loss.item(), acc, optimizer.param_groups[0]['lr']),file=log_file)
 
-            lr_scheduler.step()
-            lr_scheduler_proxies.step()
+
             optimizer_proxies.step()
 
+            print("Epoch {} complete! Average Training loss: {:.4f}".format(e, train_loss / len(train_iterator)))
             print("Epoch {} complete! Average Training loss: {:.4f}".format(e, train_loss / len(train_iterator)),file=log_file)
 
 
@@ -179,6 +193,8 @@ def main(args):
                 remaining_time = training_time_epoch * args.epochs - total_training_time
                 print("Total training time: {:.4f}s, {:.4f} s/epoch, Estimated remaining time: {:.4f}s".format(
                     total_training_time, training_time_epoch, remaining_time))
+                print("Total training time: {:.4f}s, {:.4f} s/epoch, Estimated remaining time: {:.4f}s".format(
+                    total_training_time, training_time_epoch, remaining_time),file=log_file)
 
                 if dia_acc > best_acc:
                     curr_patience = args.patience
@@ -186,17 +202,20 @@ def main(args):
                     new_model_path = os.path.join(args.model_path, 'bestacc_model_{}.pth'.format(e))
                     model_snapshot(model, new_model_path, old_modelpath=old_model_path,only_bestmodel=True)
                     old_model_path = new_model_path
-                    print("Found new best model, saving to disk...",file=log_file)
+                    print("Found new best model, saving to disk...")
                 else:
                     curr_patience -= 1
                     if curr_patience == 0:
-                        print("Early stopping, best accuracy: {}".format(best_acc),file=log_file)
+                        print("Early stopping, best accuracy: {:.4f}".format(best_acc))
+                        print("Early stopping, best accuracy: {:.4f}".format(best_acc),file=log_file)
                         complete = True
                         break
 
                 if e == args.epochs - 1:
-                    print("Training complete, best accuracy: {}".format(best_acc),file=log_file)
+                    print("Training complete, best accuracy: {:.4f}".format(best_acc))
+                    print("Training complete, best accuracy: {:.4f}".format(best_acc),file=log_file)
                     complete = True
+            log_file.flush()
 
         '''test'''
         if complete:
@@ -219,8 +238,10 @@ def main(args):
 
                     confusion_diag.update(predicted_results.cpu().numpy(), diagnosis_label.cpu().numpy())
 
+                print("Test confusion matrix:")
                 print("Test confusion matrix:",file=log_file)
-                dia_acc = confusion_diag.summary(log_file)
+                confusion_diag.summary(log_file)
+                print("Test AUC:")
                 print("Test AUC:",file=log_file)
                 Auc(pro_diag, lab_diag, args.num_classes, log_file)
 
@@ -235,42 +256,35 @@ def main(args):
 parser = argparse.ArgumentParser(description='Training for the classification task')
 
 #dataset
-parser.add_argument('--data_path', type=str, default='data', help='the path of the data')
+parser.add_argument('--data_path', type=str, default='/media/disk/zyl/data/ISIC_CL/ISIC2018/', help='the path of the data')
 parser.add_argument('--dataset', type=str, default='ISIC2018',choices=['ISIC2018','ISIC2019'], help='the name of the dataset')
-parser.add_argument('--cls_num_list', type=list, default=[84, 195, 69, 4023, 308, 659, 667], help='the number of samples in each class')
-# [519,1993,1574,143,2712,7725,376,151] isic2019
-# [84, 195, 69, 4023, 308, 659, 667] isic2018
-parser.add_argument('--model_path', type=str, default='model', help='the path of the model')
-parser.add_argument('--log_path', type=str, default='log', help='the path of the log')
+parser.add_argument('--model_path', type=str, default="/media/disk/zyl/Experiment/ISIC_CL/ISIC2018/test_git/", help='the path of the model')
+parser.add_argument('--log_path', type=str, default=None, help='the path of the log')
 
 
 # training parameters
-parser.add_argument('--batch_size', type=int, default=32, help='batch size')
+parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--epochs', type=int, default=100, help='number of epochs')
-parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
+parser.add_argument('--lr', type=float, default=0.002, help='learning rate')
 parser.add_argument('--weight_decay', type=float, default=0.0001, help='weight decay')
 parser.add_argument('--patience', type=int, default=100, help='patience for early stopping')
-parser.add_argument('--num_classes', type=int, default=8, help='number of classes')
 parser.add_argument('--cuda', type=bool, default=True, help='whether to use cuda')
 parser.add_argument('--seed', type=int, default=1, help='random seed')
+parser.add_argument('--gpu', type=str, default='1', help='gpu device ids for CUDA_VISIBLE_DEVICES')
 
 
 # loss weights
-parser.add_argument('--alpha', type=float, default=2.0, help='weight of the cross entropy loss')
-parser.add_argument('--beta', type=float, default=1.0, help='weight of the BHP loss')
+parser.add_argument('--alpha', type=float, default=2.0, choices=[0.5,1.0,2.0], help='weight of the cross entropy loss')
+parser.add_argument('--beta', type=float, default=1.0, choices=[0.5,1.0,2.0],help='weight of the BHP loss')
 # hyperparameters for ce loss
-parser.add_argument('--E1', type=int, default=20, help='hyperparameter for ce loss')
-parser.add_argument('--E2', type=int, default=50, help='hyperparameter for ce loss')
+parser.add_argument('--E1', type=int, default=20, choices=[20, 30, 40],help='hyperparameter for ce loss')
+parser.add_argument('--E2', type=int, default=50, choices=[50, 60, 70],help='hyperparameter for ce loss')
 
 # hyperparameters for model
 parser.add_argument('--feat_dim', dest='feat_dim', type=int, default=128)
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-def _seed_torch(seed=7):
+def _seed_torch(args):
     r"""
     Sets custom seed for torch
 
@@ -282,18 +296,35 @@ def _seed_torch(seed=7):
 
     """
     import random
+    seed = args.seed
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    if device.type == 'cuda':
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+    if args.cuda:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if device.type == 'cuda':
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+        else:
+            raise EnvironmentError("GPU device not found")
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    _seed_torch(args.seed)
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+    _seed_torch(args)
+    if args.dataset == 'ISIC2018':
+        args.cls_num_list = [84, 195, 69, 4023, 308, 659, 667]
+        args.num_classes = 7
+    elif args.dataset == 'ISIC2019':
+        args.cls_num_list = [519, 1993, 1574, 143, 2712, 7725, 376, 151]
+        args.num_classes = 8
+    else:
+        raise Exception("Invalid dataset name!")
+
+    if args.log_path is None:
+        args.log_path = args.model_path
     main(args)
     print("Done!")
