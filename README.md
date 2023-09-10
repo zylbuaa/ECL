@@ -10,7 +10,9 @@
 
 ### Share us a :star: if this repo does help
 
-This repository is the official implementation of *ECL* ***(Accepted by MICCAI 2023)***. If you encounter any question, please feel free to contact us. You can create an issue or just send email to me zhangyilan@buaa.edu.com. Also welcome for any idea exchange and discussion.
+This repository is the official implementation of *ECL* ***(Accepted by MICCAI 2023)***. If you encounter any question, please feel free to contact us. You can create an issue or just send an email to me at zhangyilan@buaa.edu.com. Also welcome for any idea exchange and discussion.
+
+https://github.com/zylbuaa/ECL/assets/90943537/5d52191d-ae31-4316-8cbd-aaa29b68800c
 
 ## Updates
 
@@ -28,10 +30,6 @@ This repository is the official implementation of *ECL* ***(Accepted by MICCAI 2
 ## Abstract
 ![Our Network Structure](network.png)
 Skin image datasets often suffer from imbalanced data distribution, exacerbating the difficulty of computer-aided skin disease diagnosis.  Some recent works exploit supervised contrastive learning (SCL) for this long-tailed challenge. Despite achieving significant performance, these SCL-based methods focus more on head classes, yet ignore the utilization of information in tail classes. In this paper, we propose class-*E*nhancement *C*ontrastive *L*earning (*ECL*), which enriches the information of minority classes and treats different classes equally. For information enhancement, we design a hybrid-proxy model to generate class-dependent proxies and propose a cycle update strategy for parameter optimization. A balanced-hybrid-proxy loss is designed to exploit relations between samples and proxies with different classes treated equally. Taking both "imbalanced data" and "imbalanced diagnosis difficulty" into account, we further present a balanced-weighted cross-entropy loss following the curriculum learning schedule.
-
-## Presentation
-
-https://github.com/zylbuaa/ECL/assets/90943537/6aca9f12-aac3-47f1-832a-140e0939f049
 
 ## Requirements
 - Windows/Linux both support
