@@ -45,6 +45,11 @@ def get_proxies_num(cls_num_list):
     return prototype_num_list
 
 def main(args):
+    if not os.path.exists(args.log_path):
+        os.makedirs(args.log_path)
+    if not os.path.exists(args.model_path):
+        os.makedirs(args.model_path)
+
     log_file = open(os.path.join(args.log_path,'train_log.txt'), 'w')
 
     '''print args'''
@@ -210,6 +215,10 @@ def main(args):
                         print("Early stopping, best accuracy: {:.4f}".format(best_acc),file=log_file)
                         complete = True
                         break
+                if (e + 1)%10 == 0:
+                    new_model_path = os.path.join(args.model_path, 'model_{}.pth'.format(e+1))
+                    model_snapshot(model, new_model_path, old_modelpath=old_model_path,only_bestmodel=False)
+                    old_model_path = new_model_path
 
                 if e == args.epochs - 1:
                     print("Training complete, best accuracy: {:.4f}".format(best_acc))
@@ -219,6 +228,33 @@ def main(args):
 
         '''test'''
         if complete:
+
+            for e in range(6, args.epochs//10):
+                model.load_state_dict(torch.load(os.path.join(args.model_path, 'model_{}.pth'.format((e+1)*10))),strict=True)
+                model.eval()
+
+                pro_diag, lab_diag = [], []
+                confusion_diag = ConfusionMatrix(num_classes=args.num_classes, labels=list(range(args.num_classes)))
+                with torch.no_grad():
+                    for batch_index, (data, label) in enumerate(test_iterator):
+                        if args.cuda:
+                            data = data.cuda()
+                            label = label.cuda()
+                        diagnosis_label = label.squeeze(1)
+
+                        output = model(data)
+                        predicted_results = torch.argmax(output, dim=1)
+                        pro_diag.extend(output.detach().cpu().numpy())
+                        lab_diag.extend(diagnosis_label.cpu().numpy())
+
+                        confusion_diag.update(predicted_results.cpu().numpy(), diagnosis_label.cpu().numpy())
+
+                    print("Test confusion matrix:")
+                    print("Test confusion matrix:",file=log_file)
+                    confusion_diag.summary(log_file)
+                    Auc(pro_diag, lab_diag, args.num_classes, log_file)
+                    log_file.flush()
+
             model.load_state_dict(torch.load(old_model_path),strict=True)
             model.eval()
 
@@ -256,9 +292,9 @@ def main(args):
 parser = argparse.ArgumentParser(description='Training for the classification task')
 
 #dataset
-parser.add_argument('--data_path', type=str, default='/media/disk/zyl/data/ISIC_CL/ISIC2018/', help='the path of the data')
+parser.add_argument('--data_path', type=str, default='./data/ISIC2018/', help='the path of the data')
 parser.add_argument('--dataset', type=str, default='ISIC2018',choices=['ISIC2018','ISIC2019'], help='the name of the dataset')
-parser.add_argument('--model_path', type=str, default="/media/disk/zyl/Experiment/ISIC_CL/ISIC2018/test_git/", help='the path of the model')
+parser.add_argument('--model_path', type=str, default="./Experiment/ISIC_CL/ISIC2018/test_git/", help='the path of the model')
 parser.add_argument('--log_path', type=str, default=None, help='the path of the log')
 
 
