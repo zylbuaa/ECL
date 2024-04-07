@@ -53,7 +53,7 @@ python train.py --dataset ISIC2018 --data_path ./data/ISIC2018/ --batch_size 64 
 ## Testing
 We upload the model weights for two datasets, run this command:
 ```python
-python test.py --dataset ISIC2018 --data_path ./data/ISIC2018/  --model_path ./data/ISIC2019/ --log_path <your log path>
+python test.py --dataset ISIC2018 --data_path ./data/ISIC2018/  --model_path ./data/ISIC2018/ --log_path <your log path>
 ```
 
 ## Citation & Acknowledgments
